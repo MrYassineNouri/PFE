@@ -1,5 +1,6 @@
 package com.example.bbbbbbbb.Services;
-
+import com.example.bbbbbbbb.entities.Utilisateur;
+import com.example.bbbbbbbb.entities.groupe;
 import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.sql.Connection;
@@ -7,109 +8,201 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class UserService {
-    public String aff(){
+    public String aff() {
         return "hello";
     }
 
-    Boolean user(String a,String b) throws ClassNotFoundException, SQLException {
+    private Connection getConnection() throws ClassNotFoundException, SQLException {
         Class.forName("oracle.jdbc.driver.OracleDriver");
+        return DriverManager.getConnection("jdbc:oracle:thin:@localhost:1521:xe", "system", "Sirine12");
+    }
 
-        Connection con =DriverManager.getConnection("jdbc:oracle:thin:@localhost:1521:xe","system","Sirine12");
+    private boolean checkCredentials(String tableName, String username, String password) throws ClassNotFoundException, SQLException {
+        try (Connection con = getConnection();
+             Statement st = con.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM PFE." + tableName)) {
 
-        Statement st=con.createStatement();
-
-        String query="select * from PFE.UTILISATEUR";
-
-        ResultSet rs=st.executeQuery(query);
-
-        while (rs.next()) {
-            System.out.println(rs.getString(3)+" "+rs.getString(4));
-            if ((rs.getString(3).equals(a) && ((rs.getString(4).equals(b)))))
-            {
-                return true;
+            while (rs.next()) {
+                System.out.println(rs.getString(3) + " " + rs.getString(4));
+                if (rs.getString(3).equals(username) && rs.getString(4).equals(password)) {
+                    return true;
+                }
             }
         }
-        rs.close();
-        st.close();
-        con.close();
         return false;
     }
 
-    Boolean admin(String a,String b) throws ClassNotFoundException, SQLException {
-        Class.forName("oracle.jdbc.driver.OracleDriver");
 
-        Connection con =DriverManager.getConnection("jdbc:oracle:thin:@localhost:1521:xe","system","Sirine12");
 
-        Statement st=con.createStatement();
+    private boolean testActivation(String tableName, String username) throws ClassNotFoundException, SQLException {
+        try (Connection con = getConnection();
+             Statement st = con.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM PFE." + tableName + " WHERE EMAIL = '" + username + "'")) {
 
-        String query="select * from PFE.ADMIN";
-
-        ResultSet rs=st.executeQuery(query);
-
-        while (rs.next()) {
-            System.out.println(rs.getString(3)+" "+rs.getString(4));
-            if ((rs.getString(3).equals(a) && ((rs.getString(4).equals(b)))))
-            {
-                return true;
+            while (rs.next()) {
+                if (rs.getString(5).equals("D") ) {
+                    return true;
+                }
             }
         }
-        rs.close();
-        st.close();
-        con.close();
         return false;
     }
-    Boolean commercial(String a,String b) throws ClassNotFoundException, SQLException {
-        Class.forName("oracle.jdbc.driver.OracleDriver");
 
-        Connection con =DriverManager.getConnection("jdbc:oracle:thin:@localhost:1521:xe","SYSTEM","SYSTEM");
 
-        Statement st=con.createStatement();
+    ////////////////////////////////Authentification///////////////////////////
+    public String authentification() throws ClassNotFoundException, SQLException {
 
-        String query="select * from PFE.COMMERCIAL";
+        String username="admin";
+        String password="admin";
+        if (username.isEmpty()) {
+            return "Enter username";
+        } else if (password.isEmpty()) {
+            return "Enter your password";
+        } else if (checkCredentials("UTILISATEUR", username, password)) {
+            if (testActivation("UTILISATEUR",username)){
+                return "Votre Compte est désactiver";
+            }
+            else
+                return "Je suis un utilisateur";
+        } else if (checkCredentials("ADMIN", username, password)) {
+            if (testActivation("ADMIN",username)){
+                return "Votre Compte est désactiver";
+            }
+            else
+                return "Je suis un admin";
+        } else if (checkCredentials("COMMERCIAL", username, password)) {
+            if (testActivation("COMMERCIAL",username)){
+                return "Votre Compte est désactiver";
+            }
+            else
+                return "Je suis un commercial";
+        }
+        return "Email ou mot de passe invalide";
+    }
 
-        ResultSet rs=st.executeQuery(query);
+    Boolean test(String s,String tableName) throws IOException, SQLException {
+        try (Connection con = getConnection();
+             Statement st = con.createStatement();
+             ResultSet rs = st.executeQuery("select * from PFE."+tableName)) {
+            while (rs.next()) {
+                if ((rs.getString(3).equals(s))) {
+                    return true;
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+        return false;
+    }
 
-        while (rs.next()) {
-            System.out.println(rs.getString(3)+" "+rs.getString(4));
-            if ((rs.getString(3).equals(a) && ((rs.getString(4).equals(b)))))
-            {
-                return true;
+
+
+
+
+    ///////////////////////Création Compte////////////////////////////////////////
+    public String compte() throws IOException, SQLException {
+
+        String a = "addd";
+        String b = "112233";
+        String c = "112233";
+        String tableName = "ADMIN";
+        if (a.isEmpty()) {
+            return "taper l'email";
+        } else if (b.isEmpty()) {
+            return "taper le mot de passe";
+        } else if (c.isEmpty()) {
+            return "Confirmer le mot de passe";
+        } else if (!(b.equals(c))) {
+            return "Vérifier le mot de passe";
+        } else if (test(a, tableName)) {
+            return "Email existe deja choisir un autre";
+        } else {
+            char stat='A';
+            try (Connection con = getConnection();
+                 Statement st = con.createStatement();
+                 ResultSet rs = st.executeQuery("INSERT INTO PFE." + tableName + "(EMAIL, PASSWORD,STATUS) VALUES ('" + a + "','" + b + "','"+stat+"')")) {
+                return "création avec succés";
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+
+        }
+    }
+
+
+
+
+
+    //////////////////////Afficher liste user////////////////////////
+    public List<Utilisateur> listUsers(){
+        List<Utilisateur> users=new ArrayList<>();
+        String tableName="ADMIN";
+        try (Connection con = getConnection();
+             Statement st = con.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM PFE." + tableName)) {
+
+            while (rs.next()) {
+                Long id= Long.valueOf(rs.getString(1));;
+                users.add(new Utilisateur(id,rs.getString(2),rs.getString(3),rs.getString(4)));
+            }
+        } catch (SQLException | ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+        return users;
+    }
+
+
+    public String check() throws ClassNotFoundException, SQLException {
+
+        String tableName = "ADMIN";
+        String username = "admin";
+        try (Connection con = getConnection();
+             Statement st = con.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM PFE." + tableName + " WHERE EMAIL = '" + username + "'")) {
+            while (rs.next()) {
+                if (rs.getString(5).equals("A")) {
+                    char newStatus='D';
+                    int rowsUpdated = st.executeUpdate("UPDATE PFE." + tableName + " SET status = '" + newStatus + "' WHERE EMAIL ='" + username + "'");
+                    if (rowsUpdated > 0) {
+                        return "DESACTIVATION AVEC SUCCES";
+                    } else {
+                        return "Echec de la desactivation";
+                    }
+                } else {
+                    char newStatus='A';
+                    int rowsUpdated = st.executeUpdate("UPDATE PFE." + tableName + " SET status = '" + newStatus + "' WHERE EMAIL ='" + username + "'");
+                    if (rowsUpdated > 0) {
+                        return "ACTIVATION AVEC SUCCES";
+                    } else {
+                        return "Echec de l'activation";
+                    }
+                }
             }
         }
-        rs.close();
-        st.close();
-        con.close();
-        return false;
+        return "modification avec succès";
     }
-    public String authentification() throws IOException, ClassNotFoundException, SQLException {
 
-        String username="user";
-        String password="user";
-        if (username.isEmpty())
-        {
-            return "Entrer username";
-        }
-        else if (password.isEmpty())
-        {
-            return"Entrer votre mot de passe";
-        }
-        else if(user(username,password)) {
 
-            return"je suis un utilisateur";
 
-        }
-        else if(admin(username,password)) {
 
-            return"je suis un admin";
+    public String update() throws ClassNotFoundException, SQLException {
+        String tableName = "ADMIN";
+        String newN = "admine";
+        String newE = "admine";
+        String newP = "admine";
+        long num = 1;
+        try (Connection con = getConnection();
+             Statement st = con.createStatement()) {
+            int rowsUpdated = st.executeUpdate("UPDATE PFE." + tableName + " SET NOM = '" + newN + "', EMAIL = '" + newE + "', PASSWORD = '" + newP + "' WHERE ID ='"+num+ "'");
+            return rowsUpdated > 0 ? "Modification réussie" : "Aucune modification effectuée";
         }
-        else if(commercial(username,password)) {
-
-            return"je suis un commercial";
-        }
-        return"email ou mot de passe invalide";
     }
+
+
 
 }
